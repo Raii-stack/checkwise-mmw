@@ -1,27 +1,24 @@
 import Papa from 'papaparse';
+import { readSheet } from 'read-excel-file/universal';
 import { checkDigit, validateIdentifier, type Finding, type Run, type Scheme } from './validation';
 
 export const HEADERS = ['invoice_id', 'identifier_type', 'identifier_value'];
 export const MAX_BYTES = 2 * 1024 * 1024;
 export const MAX_ROWS = 5000;
 
-export function validateCsv(text: string, fileName: string): Run {
-  if (new TextEncoder().encode(text).length > MAX_BYTES) throw new Error('Choose a CSV smaller than 2 MB.');
-  const normalized = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
-  const parsed = Papa.parse<string[]>(normalized, { skipEmptyLines: 'greedy', delimiter: ',', newline: '\n' });
-  if (parsed.errors.length) throw new Error(`CSV could not be read: ${parsed.errors[0].message}`);
-  const [header, ...rows] = parsed.data;
-  if (!header || header.length !== HEADERS.length || HEADERS.some((name, i) => header[i].trim() !== name)) {
+export function validateRows(rawRows: unknown[][], fileName: string): Run {
+  const [header, ...rows] = rawRows;
+  if (!header || header.length !== HEADERS.length || HEADERS.some((name, i) => String(header[i] ?? '').trim() !== name)) {
     throw new Error(`Use these exact columns, in order: ${HEADERS.join(',')}`);
   }
-  if (!rows.length) throw new Error('The CSV contains a header but no records.');
+  if (!rows.length) throw new Error('The file contains a header but no records.');
   if (rows.length > MAX_ROWS) throw new Error(`Use at most ${MAX_ROWS.toLocaleString()} records per batch.`);
   const errors: Finding[] = [];
   rows.forEach((row, index) => {
-    if (row.length !== 3) throw new Error(`CSV record ${index + 2} has ${row.length} columns; expected 3. Check commas and quotation marks.`);
-    const [invoice_id, identifier_type, identifier_value] = row.map(value => value.trim());
+    if (!row || row.length !== 3) throw new Error(`Record ${index + 2} has ${row?.length ?? 0} columns; expected 3. Check commas and quotation marks.`);
+    const [invoice_id, identifier_type, identifier_value] = row.map(value => String(value ?? '').trim());
     if (invoice_id.length > 80 || identifier_type.length > 32 || identifier_value.length > 128) {
-      throw new Error(`CSV record ${index + 2} exceeds the field length limit (80 / 32 / 128 characters).`);
+      throw new Error(`Record ${index + 2} exceeds the field length limit (80 / 32 / 128 characters).`);
     }
     const base = { row_number: index + 2, invoice_id, identifier_type, identifier_value };
     if (!invoice_id || !['luhn', 'mod11'].includes(identifier_type)) {
@@ -37,6 +34,35 @@ export function validateCsv(text: string, fileName: string): Run {
     transposition_count: errors.filter(row => row.code === 'possible_transposition').length,
     algorithm_version: 1, errors,
   };
+}
+
+export function validateCsv(text: string, fileName: string): Run {
+  if (new TextEncoder().encode(text).length > MAX_BYTES) throw new Error('Choose a CSV smaller than 2 MB.');
+  const normalized = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const parsed = Papa.parse<string[]>(normalized, { skipEmptyLines: 'greedy', delimiter: ',', newline: '\n' });
+  if (parsed.errors.length) throw new Error(`CSV could not be read: ${parsed.errors[0].message}`);
+  return validateRows(parsed.data, fileName);
+}
+
+export async function validateXlsx(data: Blob | ArrayBuffer, fileName: string): Promise<Run> {
+  const byteLength = data instanceof Blob ? data.size : data.byteLength;
+  if (byteLength > MAX_BYTES) throw new Error('Choose an Excel file smaller than 2 MB.');
+  let rawSheet: unknown[][];
+  try {
+    rawSheet = (await readSheet(data, { parseNumber: s => s })) as unknown[][];
+  } catch (err) {
+    throw new Error(`Excel file could not be read: ${err instanceof Error ? err.message : 'Invalid file'}`);
+  }
+  const clean = rawSheet
+    .filter(row => row && row.some(cell => cell !== null && cell !== undefined && String(cell).trim() !== ''))
+    .map(row => {
+      let len = row.length;
+      while (len > 3 && (row[len - 1] === null || row[len - 1] === undefined || String(row[len - 1]).trim() === '')) {
+        len--;
+      }
+      return row.slice(0, len);
+    });
+  return validateRows(clean, fileName);
 }
 
 export function sampleCsv(): string {

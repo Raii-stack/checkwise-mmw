@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import Papa from 'papaparse';
-import { HEADERS, MAX_BYTES, reportCsv, sampleCsv, validateCsv } from './csv';
+import writeXlsxFile from 'write-excel-file/node';
+import { HEADERS, MAX_BYTES, reportCsv, sampleCsv, validateCsv, validateXlsx } from './csv';
 const header = HEADERS.join(',');
 
 describe('batch workflow', () => {
@@ -43,5 +44,26 @@ describe('batch workflow', () => {
     const report = reportCsv(validateCsv(`${header}\na,luhn,00`, 'clean.csv'));
     expect(report).toContain('row_number,invoice_id');
     expect(Papa.parse(report, { skipEmptyLines: true }).data).toHaveLength(1);
+  });
+  it('validates Excel (.xlsx) batches with identical accuracy', async () => {
+    const data = [
+      [{ value: 'invoice_id' }, { value: 'identifier_type' }, { value: 'identifier_value' }],
+      [{ value: 'INV-1' }, { value: 'luhn' }, { value: '79927398713' }],
+      [{ value: 'INV-2' }, { value: 'mod11' }, { value: '1236' }],
+      [{ value: 'INV-3' }, { value: 'luhn' }, { value: '79927398714' }]
+    ];
+    const file = await (writeXlsxFile as any)(data, { buffer: true });
+    const buf = await file.toBuffer();
+    const arrayBuffer = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+    const run = await validateXlsx(arrayBuffer, 'test.xlsx');
+    expect(run.total_count).toBe(3);
+    expect(run.valid_count).toBe(2);
+    expect(run.flagged_count).toBe(1);
+    expect(run.errors[0].invoice_id).toBe('INV-3');
+    expect(['possible_transposition', 'checksum_failed']).toContain(run.errors[0].code);
+  });
+  it('rejects malformed or oversized Excel files', async () => {
+    await expect(validateXlsx(new ArrayBuffer(MAX_BYTES + 1), 'big.xlsx')).rejects.toThrow('2 MB');
+    await expect(validateXlsx(new ArrayBuffer(10), 'corrupt.xlsx')).rejects.toThrow('could not be read');
   });
 });
