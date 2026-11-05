@@ -50,11 +50,3 @@ Passing a checksum does not establish a valid identity, issued card, legitimate 
 The original file and passing rows are not stored. Each saved run retains its timestamp, filename, algorithm version, totals and flagged rows, including submitted values. Input data is never sent to an application server. Use synthetic data only.
 
 History belongs to the browser profile and site origin. Other users of the same profile can access it. It does not sync across devices or domains; localhost, previews, and the production site each have separate histories. Browser data cleanup, private browsing, or storage eviction can remove it. Export important reports. Storage failures leave the in-memory result available for export. Saved reports are editable browser data, not tamper-proof audit evidence.
-
-## Deploy on Vercel
-
-Production: [checkwise-mmw.vercel.app](https://checkwise-mmw.vercel.app). Project: `checkwise-mmw`, in `Ryan Gopio's projects`.
-
-Import this directory as a Vercel project with the Vite preset, build command `npm run build`, and output directory `dist`. No secrets or service configuration are needed. `vercel.json` includes the static build settings and basic response headers. Deployments may also be created from the local source using the Vercel CLI.
-
-The production site is fully static. Google Fonts serves the optional display fonts; system fonts provide a fallback. All invoice processing and local history remain in the browser.
