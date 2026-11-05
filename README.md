@@ -1,30 +1,50 @@
-# Checkwise
+<div align="center">
+  <h1>Checkwise</h1>
+  <p><strong>Small digits. Meaningful checks.</strong></p>
+  <p>Forensic Check-Digit Validator · Mathematics in the Modern World</p>
+</div>
 
-A browser-based forensic check-digit lab for Mathematics in the Modern World. Built with React, TypeScript and Vite. CSV parsing and validation happen in a Web Worker; optional saved history uses IndexedDB in the same browser. No accounts, backend, database service, or environment variables are required.
+![Checkwise forensic auditing workspace](docs/images/checkwise-preview.png)
 
-## Run
+## About the project
 
-Requires Node.js 22.12+ or 24 and npm.
+Checkwise is a browser-based forensic check-digit validator designed for *Mathematics in the Modern World* and accountancy laboratories. It turns modular arithmetic into an interactive audit trail—helping students and auditors validate batches of synthetic invoice and supplier identifiers, catch data-entry mistakes, and inspect likely digit transpositions before records enter a ledger.
 
-```sh
-npm ci
-npm run dev
-```
+All spreadsheet parsing and checksum verification run locally inside a dedicated Web Worker, with optional batch history stored in the browser via IndexedDB. No accounts, backend services, external databases, or environment variables are required.
 
-Open the address Vite prints. `npm test` runs the arithmetic, CSV and browser-storage unit tests. `npm run build` checks TypeScript and builds `dist/`; `npm run preview` serves that build locally.
+## Key capabilities
 
-## Sample CSV
+- **Batch spreadsheet validation** — Upload `.csv` or Excel (`.xlsx`) batches up to 2 MB and 5,000 records, or launch the built-in 1,200-record synthetic dataset with one click.
+- **Dual check-digit schemes** — Verify identifiers against both the Luhn (modulo 10) algorithm and an instructional modulo-11 weighting scheme.
+- **Transposition detection** — Automatically test adjacent digit swaps on failed records to surface possible typing transpositions alongside exact character positions.
+- **Exception review & safe export** — Search and filter flagged records by finding category (`invalid_format`, `checksum_failed`, `possible_transposition`) and export formula-escaped CSV exception reports.
+- **Local history & privacy** — Persist run summaries and flagged exceptions in IndexedDB for later review without ever transmitting source files over the network.
 
-Download [checkwise-sample-1200.csv](sample-data/checkwise-sample-1200.csv). It contains the same 1,200 deterministic synthetic records as the app’s **Try sample batch** button. Regenerate it with `npm run sample:generate` after changing the sample-data logic.
+## Built with
 
-## Use
+<table align="center">
+  <thead>
+    <tr>
+      <th align="center">Layer</th>
+      <th align="center">Technologies</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td align="center">Frontend</td><td align="center">React 19 · TypeScript · Vite · Lucide Icons</td></tr>
+    <tr><td align="center">Parsing &amp; compute</td><td align="center">Web Workers · Papa Parse · read-excel-file</td></tr>
+    <tr><td align="center">Local persistence</td><td align="center">IndexedDB</td></tr>
+    <tr><td align="center">Quality &amp; testing</td><td align="center">Vitest · fake-indexeddb</td></tr>
+  </tbody>
+</table>
 
-1. Choose a CSV or select **Try sample batch**. The deterministic sample contains 1,200 synthetic records: 900 pass, 300 are flagged, and 224 of those have a possible adjacent swap.
-2. Review the totals, search or filter flagged records, and export the errors as CSV.
-3. Select **Save run** to keep its summary and flagged rows in this browser. **Saved history** reopens, exports, or deletes saved runs.
-4. **How it works** explains both algorithms and their limitations.
+## Sample datasets & input format
 
-Input columns must be in this order:
+Ready-to-test sample files are available in [`sample-data/`](sample-data/):
+
+- **[checkwise-sample-1200.csv](sample-data/checkwise-sample-1200.csv)** & **[checkwise-sample-1200.xlsx](sample-data/checkwise-sample-1200.xlsx)** — 1,200 deterministic synthetic records (900 passing, 300 flagged, including 224 possible adjacent transpositions).
+- **[checkwise-sample-quick.xlsx](sample-data/checkwise-sample-quick.xlsx)** — A compact 15-record Excel sheet for quick inspection.
+
+Input files must use these three columns in exact order:
 
 ```csv
 invoice_id,identifier_type,identifier_value
@@ -33,20 +53,12 @@ DEMO-002,mod11,1236
 DEMO-003,mod11,6X
 ```
 
-Identifiers are strings, including their final check digit. Preserve leading zeros when preparing files in a spreadsheet. Allowed types are `luhn` and `mod11`, case sensitive. Outer field whitespace is trimmed; values are otherwise not corrected. Luhn accepts 2–32 digits. Mod-11 accepts 1–31 payload digits plus a final digit or uppercase `X`. CSVs may contain a BOM, quoted commas, and quoted newlines. Empty lines are ignored. Record numbers count parsed CSV entries including the header, rather than physical lines.
+- **Format rules:** Identifiers are evaluated as strings including their final check digit (keep cells formatted as text to preserve leading zeros). Allowed `identifier_type` values are `luhn` (2–32 digits) and `mod11` (1–31 payload digits plus a final digit or uppercase `X`).
+- **Batch limits:** Up to 2 MB and 5,000 records per file. Field lengths are capped at 80 characters (`invoice_id`), 32 (`identifier_type`), and 128 (`identifier_value`). Structural file errors reject the batch; row-level format or checksum issues are reported as findings.
 
-Batches are capped at 2 MB and 5,000 records. Fields are limited to 80 characters for invoice IDs, 32 for identifier types, and 128 for submitted values. Structural CSV errors reject the whole batch. Row-level format or checksum errors appear in the report. Exports escape spreadsheet formulas. Use **Export errors** for all flagged rows, regardless of the current display filter.
+## Mathematics & audit scope
 
-## Mathematics
-
-- **Luhn:** Starting at the right of the payload, double every other digit; subtract 9 when a product exceeds 9. Check digit = `(10 - sum % 10) % 10`.
-- **Instructional mod-11:** Apply weights 2 through 7 cyclically from the right of the payload. Check digit = `(11 - sum % 11) % 11`, with 10 represented by `X`. This is a defined demo scheme, not an official TIN or SSS rule.
-- **Possible transpositions:** Only after a well-formed value fails its checksum, try each adjacent pair of different digits, including the final digit when numeric. A successful swap is reported as a possibility, never a confirmed correction. `X` is not transposed. Some substitutions can also produce possible swaps; multiple candidates are retained. Luhn cannot detect every swap, including 09 ↔ 90.
-
-Passing a checksum does not establish a valid identity, issued card, legitimate supplier, authentic invoice, or absence of fraud. Duplicate invoice/payment detection is outside this application.
-
-## Local history and privacy
-
-The original file and passing rows are not stored. Each saved run retains its timestamp, filename, algorithm version, totals and flagged rows, including submitted values. Input data is never sent to an application server. Use synthetic data only.
-
-History belongs to the browser profile and site origin. Other users of the same profile can access it. It does not sync across devices or domains; localhost, previews, and the production site each have separate histories. Browser data cleanup, private browsing, or storage eviction can remove it. Export important reports. Storage failures leave the in-memory result available for export. Saved reports are editable browser data, not tamper-proof audit evidence.
+- **Luhn (Modulo 10):** Starting from the rightmost payload digit, double every second digit and subtract 9 from any product greater than 9. The check digit is `(10 - sum % 10) % 10`.
+- **Instructional Mod-11:** Multiply payload digits from right to left by cycling weights `2, 3, 4, 5, 6, 7`. The check digit is `(11 - sum % 11) % 11`, where `10` is represented as `X`. *(Note: This is a demonstration classroom scheme, not an official TIN or SSS rule.)*
+- **Possible transpositions:** When a well-formed identifier fails its checksum, Checkwise tests swapping each adjacent pair of distinct numeric digits. Passing swaps are reported as possibilities to check against source documents, never as automatic corrections.
+- **Audit & privacy limits:** A passing checksum confirms mathematical consistency only—not the authenticity of an invoice, supplier identity, or absence of fraud. Saved runs keep only summary counts and flagged rows in the local browser profile and are not tamper-proof audit evidence.
