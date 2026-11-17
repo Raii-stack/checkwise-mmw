@@ -6,7 +6,7 @@ import type { Run } from './lib/validation';
 import Results from './components/Results';
 import History from './components/History';
 import Learn from './components/Learn';
-
+//test committt 
 type Page = 'validator' | 'history' | 'learn';
 const nav = [{ id: 'validator', label: 'Batch validator', icon: FileCheck2 }, { id: 'history', label: 'Saved history', icon: HistoryIcon }, { id: 'learn', label: 'How it works', icon: BookOpen }] as const;
 
